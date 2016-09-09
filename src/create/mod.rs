@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Regexp {
     Char(char),
     Concatenation(Vec<Regexp>),
@@ -10,15 +10,13 @@ pub enum Regexp {
     OptionalRepeated(Box<Regexp>),
 }
 
-// abc+
-// a(bc)*
 // as(c|d*)+
 // colou?r
 // hello,? (W|w)olrd
 
 use std::result::Result;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum RegexpError {
     EmptyRegexp,
     EmptyGroup(usize),
@@ -34,7 +32,6 @@ impl fmt::Display for RegexpError {
 }
 
 pub fn regexp_from_string(string: &str) -> Result<Regexp, RegexpError> {
-    println!("regexp_from_string called with: {}", string);
     let mut stack = Vec::new();
     let mut escaped = false;
     let mut depth = 0;
@@ -82,6 +79,7 @@ pub fn regexp_from_string(string: &str) -> Result<Regexp, RegexpError> {
                         })
                     };
                     stack.push(group_regexp);
+                    group = String::new();
                 } else {
                     group.push(')');
                 }
