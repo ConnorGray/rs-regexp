@@ -1,8 +1,0 @@
-enum Regexp {
-    Concatenation,
-    Alternation,
-    Optional,
-    Repeated,
-    OptionalRepeated,
-    Char,
-}
