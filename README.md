@@ -1,3 +1,3 @@
 # rs-regexp
 
-### A simple regular expresssion library for Rust.
+##### A simple regular expresssion library for Rust.
