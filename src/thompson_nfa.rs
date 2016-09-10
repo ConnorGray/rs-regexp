@@ -1,5 +1,6 @@
 use create::Regexp;
 
+#[derive(Debug)]
 pub enum Inst {
     Char(char),
     Match,
@@ -7,11 +8,12 @@ pub enum Inst {
     Split(usize, usize)
 }
 
+#[derive(Debug)]
 pub struct ThreadState {
     /// The compiled regexp program
-    insts: Vec<Inst>,
+    pub insts: Vec<Inst>,
     /// The program counters; indexes into insts
-    pcs: Vec<usize>
+    pub pcs: Vec<usize>
 }
 
 impl ThreadState {
@@ -21,13 +23,17 @@ impl ThreadState {
     }
 }
 
-pub fn update_threadstate(thread_state: &mut ThreadState, c: char) {
+pub fn update_threadstate(thread_state: &mut ThreadState, c: char) -> bool {
     let mut new_pcs = Vec::new();
+    let mut found_match = false;
     for index in &thread_state.pcs {
         let inst = &(thread_state.insts[*index]);
         match *inst {
             Inst::Char(inst_char) => if c == inst_char {
                 new_pcs.push(index+1);
+                if let Inst::Match = thread_state.insts[index+1] {
+                    found_match = true;
+                }
             },
             Inst::Match => (),
             Inst::Jump(jump_index) => new_pcs.push(jump_index),
@@ -38,6 +44,7 @@ pub fn update_threadstate(thread_state: &mut ThreadState, c: char) {
         }
     }
     thread_state.pcs = new_pcs;
+    found_match
 }
 
 pub fn compile_regexp(regexp: Regexp) -> Vec<Inst> {
@@ -72,8 +79,8 @@ fn compile_regexp_offset(regexp: Regexp, offset: usize) -> Vec<Inst> {
             }
             let total_len = alternatives_insts.iter()
                 .fold(0, |sum,x| sum + x.len())
-                + alternatives_insts.len() - 1; // + alternates_insts.len() to account
-                                              // for the Jump instruction we add
+                + alternatives_insts.len() - 1; // + alternates_insts.len() - 1
+                                                // accounts for the Jumps we add
             for sub_insts in &mut alternatives_insts {
                 let jump_to_end = Jump(total_len + offset);
                 sub_insts.push(jump_to_end);
@@ -89,7 +96,7 @@ fn compile_regexp_offset(regexp: Regexp, offset: usize) -> Vec<Inst> {
         Repeated(inner_regexp) => {
             let mut inner_insts = compile_regexp_offset(*inner_regexp,
                                                         offset);
-            let split_inst = Split(offset, offset + inner_insts.len() + 2);
+            let split_inst = Split(offset, offset + inner_insts.len() + 1);
             insts.append(&mut inner_insts);
             insts.push(split_inst);
         },
