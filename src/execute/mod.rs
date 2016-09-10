@@ -1,5 +1,9 @@
-// use super::create::Regexp;
+mod thompson_nfa;
 
-// pub fn is_match(regexp: Regexp, text: String) -> bool {
-//     false
-// }
+#[cfg(test)]
+mod tests {
+    fn compile_regexp_test() {
+        let regexp = ::create::regexp_from_string("abc");
+        let insts = super::thompson_nfa::compile_regexp(regexp);
+    }
+}
