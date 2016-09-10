@@ -7,6 +7,39 @@ pub enum Inst {
     Split(usize, usize)
 }
 
+pub struct ThreadState {
+    /// The compiled regexp program
+    insts: Vec<Inst>,
+    /// The program counters; indexes into insts
+    pcs: Vec<usize>
+}
+
+impl ThreadState {
+    pub fn from_regexp(regexp: Regexp) -> ThreadState {
+        ThreadState { insts: compile_regexp(regexp),
+                      pcs: vec![0] }
+    }
+}
+
+pub fn update_threadstate(thread_state: &mut ThreadState, c: char) {
+    let mut new_pcs = Vec::new();
+    for index in &thread_state.pcs {
+        let inst = &(thread_state.insts[*index]);
+        match *inst {
+            Inst::Char(inst_char) => if c == inst_char {
+                new_pcs.push(index+1);
+            },
+            Inst::Match => (),
+            Inst::Jump(jump_index) => new_pcs.push(jump_index),
+            Inst::Split(s1_index, s2_index) => {
+                new_pcs.push(s1_index);
+                new_pcs.push(s2_index);
+            }
+        }
+    }
+    thread_state.pcs = new_pcs;
+}
+
 pub fn compile_regexp(regexp: Regexp) -> Vec<Inst> {
     let mut insts = compile_regexp_offset(regexp, 0);
     insts.push(Inst::Match);
