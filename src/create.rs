@@ -1,4 +1,5 @@
 use std::fmt;
+use std::result::Result;
 
 #[derive(Debug, PartialEq)]
 pub enum Regexp {
@@ -10,11 +11,6 @@ pub enum Regexp {
     OptionalRepeated(Box<Regexp>),
 }
 
-// as(c|d*)+
-// colou?r
-// hello,? (W|w)olrd
-
-use std::result::Result;
 
 #[derive(Debug, PartialEq)]
 pub enum RegexpError {
@@ -39,8 +35,8 @@ pub fn regexp_from_string(string: &str) -> Result<Regexp, RegexpError> {
     let mut num_alternatives = 0;
     let mut last_open_paren_index = 0;
 
-    use Regexp::*;
-    use RegexpError::*;
+    use self::Regexp::*;
+    use self::RegexpError::*;
 
     for (i, c) in string.chars().enumerate() {
         if escaped {

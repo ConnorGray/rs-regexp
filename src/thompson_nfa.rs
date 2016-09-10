@@ -1,4 +1,4 @@
-use super::super::create::Regexp;
+use create::Regexp;
 
 pub enum Inst {
     Char(char),
@@ -15,8 +15,8 @@ pub fn compile_regexp(regexp: Regexp) -> Vec<Inst> {
 
 fn compile_regexp_offset(regexp: Regexp, offset: usize) -> Vec<Inst> {
     let mut insts = Vec::new();
-    use Regexp::*;
-    use self::Inst::{Match,Jump,Split};
+    use create::Regexp::*;
+    use self::Inst::{Jump,Split};
     match regexp {
         Char(c) => {
             let char_inst = Inst::Char(c);
@@ -32,7 +32,6 @@ fn compile_regexp_offset(regexp: Regexp, offset: usize) -> Vec<Inst> {
             }
         },
         Alternation(regexps) => {
-            let mut num_insts = 0;
             let mut alternatives_insts: Vec<Vec<Inst>> = Vec::new();
             for sub_regexp in regexps {
                 let sub_insts = compile_regexp_offset(sub_regexp, offset);
