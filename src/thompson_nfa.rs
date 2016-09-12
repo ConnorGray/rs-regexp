@@ -1,6 +1,6 @@
 use create::Regexp;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Inst {
     Char(char),
     Match,
@@ -8,102 +8,136 @@ pub enum Inst {
     Split(usize, usize)
 }
 
-#[derive(Debug)]
-pub struct ThreadState {
-    /// The compiled regexp program
-    pub insts: Vec<Inst>,
-    /// The program counters; indexes into insts
-    pub pcs: Vec<usize>
+#[derive(Debug, PartialEq)]
+pub struct Thread {
+    pub saw_char: bool,
+    pub pc: usize
 }
 
-impl ThreadState {
-    pub fn from_regexp(regexp: Regexp) -> ThreadState {
-        ThreadState { insts: compile_regexp(regexp),
-                      pcs: vec![0] }
-    }
-}
 
-pub fn update_threadstate(thread_state: &mut ThreadState, c: char) -> bool {
-    let mut new_pcs = Vec::new();
-    let mut found_match = false;
-    for index in &thread_state.pcs {
-        let inst = &(thread_state.insts[*index]);
-        match *inst {
-            Inst::Char(inst_char) => if c == inst_char {
-                new_pcs.push(index+1);
-                if let Inst::Match = thread_state.insts[index+1] {
-                    found_match = true;
-                }
-            },
-            Inst::Match => (),
-            Inst::Jump(jump_index) => new_pcs.push(jump_index),
-            Inst::Split(s1_index, s2_index) => {
-                new_pcs.push(s1_index);
-                new_pcs.push(s2_index);
-            }
+pub fn thompson_vm(insts: &Vec<Inst>, input: &str) -> bool {
+    fn addthread(list: &mut Vec<Thread>, thread: Thread) {
+        let mut contains = false;
+        for elem in list.iter() {
+            if thread == *elem { contains = true; break; }
         }
+        if !contains { list.push(thread); }
     }
-    thread_state.pcs = new_pcs;
-    found_match
+
+    let mut cur_stack: Vec<Thread> = Vec::new();
+    let mut new_stack: Vec<Thread> = Vec::new();
+
+    addthread(&mut cur_stack, Thread { saw_char: false, pc: 0});
+
+    for (cur_char_index, cur_char) in input.chars().enumerate() {
+        let mut i = 0;
+
+        loop {
+            if i >= cur_stack.len() { break; }
+
+            let thread_pc: usize = cur_stack[i].pc;
+            let thread_saw_char: bool = cur_stack[i].saw_char;
+            let inst = &insts[thread_pc];
+
+            use Inst::*;
+            match *inst {
+                Char(c) => {
+                    if thread_saw_char {
+                        addthread(&mut new_stack, Thread { saw_char: false,
+                                                      pc: thread_pc });
+                    } else {
+                        if c == cur_char {
+                            addthread(&mut cur_stack, Thread { saw_char: true,
+                                                          pc: thread_pc + 1});
+                        }
+                    }
+                },
+                Match => return true,
+                Jump(jump_pc) => {
+                    addthread(&mut cur_stack,
+                              Thread { saw_char: thread_saw_char,
+                                       pc: jump_pc });
+                },
+                Split(s1_pc, s2_pc) => {
+                    addthread(&mut cur_stack,
+                              Thread { saw_char: thread_saw_char,
+                                       pc: s1_pc});
+                    addthread(&mut cur_stack,
+                              Thread { saw_char: thread_saw_char,
+                                       pc: s2_pc});
+                }
+            }
+            
+            i += 1
+        }
+        cur_stack = new_stack;
+        new_stack = Vec::new();
+    }
+    false
 }
 
-pub fn compile_regexp(regexp: Regexp) -> Vec<Inst> {
-    let mut insts = compile_regexp_offset(regexp, 0);
+pub fn compile_regexp(regexp: &Regexp) -> Vec<Inst> {
+    let mut insts = compile_regexp_offset(&regexp, 0);
     insts.push(Inst::Match);
     insts
 }
 
-fn compile_regexp_offset(regexp: Regexp, offset: usize) -> Vec<Inst> {
+fn compile_regexp_offset(regexp: &Regexp, offset: usize) -> Vec<Inst> {
     let mut insts = Vec::new();
     use create::Regexp::*;
     use self::Inst::{Jump,Split};
-    match regexp {
+    match *regexp {
         Char(c) => {
             let char_inst = Inst::Char(c);
             insts.push(char_inst);
         },
-        Concatenation(regexps) => {
+        Concatenation(ref regexps) => {
             let mut num_insts = 0;
             for sub_regexp in regexps {
-                let mut sub_insts = compile_regexp_offset(sub_regexp,
+                let mut sub_insts = compile_regexp_offset(&sub_regexp,
                                                           offset + num_insts);
                 num_insts += sub_insts.len();
                 insts.append(&mut sub_insts);
             }
         },
-        Alternation(regexps) => {
+        Alternation(ref regexps) => {
+            let num_alternatives = regexps.len();
             let mut alternatives_insts: Vec<Vec<Inst>> = Vec::new();
             for sub_regexp in regexps {
-                let sub_insts = compile_regexp_offset(sub_regexp, offset);
+                let sub_insts = compile_regexp_offset(&sub_regexp, offset);
                 alternatives_insts.push(sub_insts);
             }
             let total_len = alternatives_insts.iter()
                 .fold(0, |sum,x| sum + x.len())
                 + alternatives_insts.len() - 1; // + alternates_insts.len() - 1
                                                 // accounts for the Jumps we add
-            for sub_insts in &mut alternatives_insts {
-                let jump_to_end = Jump(total_len + offset);
-                sub_insts.push(jump_to_end);
+            for (i, sub_insts) in alternatives_insts.iter_mut().enumerate() {
+                // Add a jump instruction to all but the last alternative
+                if i < num_alternatives - 1 {
+                    let jump_to_end = Jump(total_len + offset);
+                    sub_insts.push(jump_to_end);
+                }
+                insts.append(sub_insts);
             }
         },
-        Optional(inner_regexp) => {
-            let mut inner_insts = compile_regexp_offset(*inner_regexp,
+        Optional(ref inner_regexp) => {
+            let mut inner_insts = compile_regexp_offset(&*inner_regexp,
                                                         offset + 1);
             let split_inst = Split(offset + 1, offset + inner_insts.len() + 1);
             insts.push(split_inst);
             insts.append(&mut inner_insts);
         },
-        Repeated(inner_regexp) => {
-            let mut inner_insts = compile_regexp_offset(*inner_regexp,
+        Repeated(ref inner_regexp) => {
+            let mut inner_insts = compile_regexp_offset(&*inner_regexp,
                                                         offset);
             let split_inst = Split(offset, offset + inner_insts.len() + 1);
             insts.append(&mut inner_insts);
             insts.push(split_inst);
         },
-        OptionalRepeated(inner_regexp) => {
-            let mut inner_insts = compile_regexp_offset(*inner_regexp,
+        OptionalRepeated(ref inner_regexp) => {
+            let mut inner_insts = compile_regexp_offset(&*inner_regexp,
                                                         offset + 1);
-            let split_inst = Split(offset, offset + inner_insts.len() + 2);
+            let split_inst = Split(offset + 1, offset + inner_insts.len() + 2);
             let jump_inst = Jump(offset);
             insts.push(split_inst);
             insts.append(&mut inner_insts);
