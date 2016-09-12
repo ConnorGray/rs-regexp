@@ -1,4 +1,5 @@
 extern crate regexp;
+use regexp::*;
 
 #[test]
 fn test_regexp_parser() {
@@ -32,8 +33,8 @@ fn test_regexp_simplification() {
     ];
 
     for pair in pairs {
-        let regexp = regexp::regexp_from_string(&(pair.0)).unwrap();
-        let regexp_string = regexp::regexp_to_string(&regexp);
+        let regexp = Regexp::from_string(&(pair.0)).unwrap();
+        let regexp_string = regexp_to_string(&regexp);
         println!("\tinput:\t\t{},\n\
                   \texpected ouput:\t{}\n\
                   \tactual output:\t{}", pair.0, pair.1, regexp_string);
@@ -53,7 +54,7 @@ fn test_regexs_error_detection() {
     ];
 
     for pair in pairs.iter() {
-        let err = regexp::regexp_from_string(&(pair.0)).unwrap_err();
+        let err = Regexp::from_string(&(pair.0)).unwrap_err();
         assert_eq!(pair.1, err);
     }
 }

@@ -27,131 +27,133 @@ impl fmt::Display for RegexpError {
     }
 }
 
-pub fn regexp_from_string(string: &str) -> Result<Regexp, RegexpError> {
-    let mut stack = Vec::new();
-    let mut escaped = false;
-    let mut depth = 0;
-    let mut group = String::new();
-    let mut num_alternatives = 0;
+impl Regexp {
+    pub fn from_string(string: &str) -> Result<Regexp, RegexpError> {
+        let mut stack = Vec::new();
+        let mut escaped = false;
+        let mut depth = 0;
+        let mut group = String::new();
+        let mut num_alternatives = 0;
 
-    use self::Regexp::*;
-    use self::RegexpError::*;
+        use self::Regexp::*;
+        use self::RegexpError::*;
 
-    let mut open_paren_index_stack = Vec::new();
+        let mut open_paren_index_stack = Vec::new();
 
-    for (i, c) in string.chars().enumerate() {
-        if escaped {
-            match c {
-                '('|')'|'?'|'+'|'*'|'\\' => stack.push(Char('\\')),
-                _ => ()
-            }
-            stack.push(Char(c));
-            escaped = false;
-            continue;
-        }
-
-        match c {
-            '(' => { if depth > 0 { group.push('(') };
-                     depth += 1;
-                     open_paren_index_stack.push(i);
-                     continue; },
-            ')' => {
-                depth -= 1;
-                if depth < 0 {
-                    return Result::Err(UnmatchedParenthesis(i));
-                } else if depth == 0 {
-                    // println!("group: {}", group);
-                    let group_regexp = match regexp_from_string(&group) {
-                        Ok(value) => value,
-                        Err(err) => return Result::Err(match err {
-                            EmptyRegexp => EmptyGroup(i-1),
-                            EmptyGroup(inner_i)
-                                => EmptyGroup(inner_i + i - group.len()),
-                            EmptyAlternative(inner_i)
-                                => EmptyAlternative(inner_i + i - group.len()),
-                            MisplacedOperator(inner_i)
-                                => MisplacedOperator(inner_i + i - group.len()),
-                            UnmatchedParenthesis(inner_i)
-                                => UnmatchedParenthesis(inner_i + i - group.len())
-                        })
-                    };
-                    stack.push(group_regexp);
-                    group = String::new();
-                } else {
-                    group.push(')');
+        for (i, c) in string.chars().enumerate() {
+            if escaped {
+                match c {
+                    '('|')'|'?'|'+'|'*'|'\\' => stack.push(Char('\\')),
+                    _ => ()
                 }
-                open_paren_index_stack.pop();
+                stack.push(Char(c));
+                escaped = false;
                 continue;
             }
-            _ => ()
-        }
-        if depth != 0 {
-            group.push(c);
-            continue;
-        }
-        match c {
-            '|' => {
-                let mut alternative_stack = Vec::new();
-                while stack.len() > num_alternatives {
-                    alternative_stack.push(stack.pop().unwrap());
+
+            match c {
+                '(' => { if depth > 0 { group.push('(') };
+                         depth += 1;
+                         open_paren_index_stack.push(i);
+                         continue; },
+                ')' => {
+                    depth -= 1;
+                    if depth < 0 {
+                        return Result::Err(UnmatchedParenthesis(i));
+                    } else if depth == 0 {
+                        // println!("group: {}", group);
+                        let group_regexp = match Regexp::from_string(&group) {
+                            Ok(value) => value,
+                            Err(err) => return Result::Err(match err {
+                                EmptyRegexp => EmptyGroup(i-1),
+                                EmptyGroup(inner_i)
+                                    => EmptyGroup(inner_i + i - group.len()),
+                                EmptyAlternative(inner_i)
+                                    => EmptyAlternative(inner_i + i - group.len()),
+                                MisplacedOperator(inner_i)
+                                    => MisplacedOperator(inner_i + i - group.len()),
+                                UnmatchedParenthesis(inner_i)
+                                    => UnmatchedParenthesis(inner_i + i - group.len())
+                            })
+                        };
+                        stack.push(group_regexp);
+                        group = String::new();
+                    } else {
+                        group.push(')');
+                    }
+                    open_paren_index_stack.pop();
+                    continue;
                 }
-                alternative_stack.reverse();
-                match alternative_stack.len() {
-                    0 => return Result::Err(EmptyAlternative(i)),
-                    1 => stack.push(alternative_stack.pop().unwrap()),
-                    _ => stack.push(Concatenation(alternative_stack))
-                }
-                num_alternatives += 1;
+                _ => ()
             }
-            '?' | '+' | '*' => {
-                if stack.len() == num_alternatives {
-                    return Result::Err(MisplacedOperator(i));
-                }
-                let prev_regexp = Box::new(match stack.pop() {
-                    Some(value) => value,
-                    None => return Result::Err(MisplacedOperator(i))
-                });
-                stack.push(match c {
-                    '?' => Optional(prev_regexp),
-                    '+' => Repeated(prev_regexp),
-                    '*' => OptionalRepeated(prev_regexp),
-                    _ => unreachable!()
-                });
+            if depth != 0 {
+                group.push(c);
+                continue;
             }
-            _ => stack.push(Char(c))
+            match c {
+                '|' => {
+                    let mut alternative_stack = Vec::new();
+                    while stack.len() > num_alternatives {
+                        alternative_stack.push(stack.pop().unwrap());
+                    }
+                    alternative_stack.reverse();
+                    match alternative_stack.len() {
+                        0 => return Result::Err(EmptyAlternative(i)),
+                        1 => stack.push(alternative_stack.pop().unwrap()),
+                        _ => stack.push(Concatenation(alternative_stack))
+                    }
+                    num_alternatives += 1;
+                }
+                '?' | '+' | '*' => {
+                    if stack.len() == num_alternatives {
+                        return Result::Err(MisplacedOperator(i));
+                    }
+                    let prev_regexp = Box::new(match stack.pop() {
+                        Some(value) => value,
+                        None => return Result::Err(MisplacedOperator(i))
+                    });
+                    stack.push(match c {
+                        '?' => Optional(prev_regexp),
+                        '+' => Repeated(prev_regexp),
+                        '*' => OptionalRepeated(prev_regexp),
+                        _ => unreachable!()
+                    });
+                }
+                _ => stack.push(Char(c))
+            }
         }
-    }
 
-    if depth > 0 {
-        return Result::Err(
-            UnmatchedParenthesis(open_paren_index_stack.pop().unwrap()));
-    }
-
-    if stack.len() == 0 {
-        return Result::Err(EmptyRegexp)
-    }
-
-    if num_alternatives > 0 {
-        let mut alternative_stack = Vec::new();
-        while stack.len() > num_alternatives {
-            alternative_stack.push(stack.pop().unwrap());
+        if depth > 0 {
+            return Result::Err(
+                UnmatchedParenthesis(open_paren_index_stack.pop().unwrap()));
         }
-        alternative_stack.reverse();
-        match alternative_stack.len() {
-            0 => return Result::Err(EmptyAlternative(string.len()-1)),
-            1 => stack.push(alternative_stack.pop().unwrap()),
-            _ => stack.push(Concatenation(alternative_stack))
-        }
-        num_alternatives += 1;
-    }
 
-    match num_alternatives {
-        0 => match stack.len() {
-            1 => return Result::Ok(stack.pop().unwrap()),
-            _ => return Result::Ok(Concatenation(stack))
-        },
-        1 => Result::Err(EmptyAlternative(string.len() - 1)),
-        _ => Result::Ok(Alternation(stack))
+        if stack.len() == 0 {
+            return Result::Err(EmptyRegexp)
+        }
+
+        if num_alternatives > 0 {
+            let mut alternative_stack = Vec::new();
+            while stack.len() > num_alternatives {
+                alternative_stack.push(stack.pop().unwrap());
+            }
+            alternative_stack.reverse();
+            match alternative_stack.len() {
+                0 => return Result::Err(EmptyAlternative(string.len()-1)),
+                1 => stack.push(alternative_stack.pop().unwrap()),
+                _ => stack.push(Concatenation(alternative_stack))
+            }
+            num_alternatives += 1;
+        }
+
+        match num_alternatives {
+            0 => match stack.len() {
+                1 => return Result::Ok(stack.pop().unwrap()),
+                _ => return Result::Ok(Concatenation(stack))
+            },
+            1 => Result::Err(EmptyAlternative(string.len() - 1)),
+            _ => Result::Ok(Alternation(stack))
+        }
     }
 }
 

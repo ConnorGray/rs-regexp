@@ -11,15 +11,9 @@ mod tests {
     use super::create::*;
     use super::thompson_nfa::*;
     use super::matching::*;
-        
-    #[test]
-    fn compile_regexp_test() {
-        // let regexp = create::regexp_from_string("abc").unwrap();
-        // let insts = super::thompson_nfa::compile_regexp(regexp);
-    }
 
     #[test]
-    fn thompson_vm_match_tests() {
+    fn is_match_tests() {
         let test_cases = vec![
             // (regexp, input, extected result)
             ("a", "a", true),
@@ -43,32 +37,32 @@ mod tests {
             ("colou?r", "color", true),
             ("colou?r", "colour", true),
         ];
-
         println!("");
-
-        for (i, test_case) in test_cases.iter().enumerate() {
-            let regexp = regexp_from_string(test_case.0).unwrap();
+        for test_case in test_cases {
+            let regexp = &Regexp::from_string(test_case.0).unwrap();
             let input = test_case.1;
             let expected_result = test_case.2;
+            let result = is_match(regexp, input);
 
-            let insts = compile_regexp(&regexp);
-
-            let result = thompson_vm(&insts, input);
             if result != expected_result {
                 let error_message = format!(
                     "\t=== Regexp:\t\t\"{}\" > {:?}\n\
-                     \t=== Compiled:\t\t{:?}\n\
                      \t=== Input:\t\t{}\n\
                      \t=== Expected Result:\t{}\n\
                      \t=== Actual Result:\t{}\n",
                     test_case.0, regexp,
-                    insts,
                     input,
                     expected_result,
                     result);
                 panic!("Unexpected Regexp match result:\n{}", error_message);
+                
             }
         }
+    }
+
+    #[test]
+    fn thompson_vm_match_tests() {
+
     }
 
     #[test]
@@ -107,11 +101,11 @@ mod tests {
     #[test]
     fn instruction_generation() {
         use Inst::*;
-        let con_insts = compile_regexp(&regexp_from_string("abc").unwrap());
-        let alt_insts = compile_regexp(&regexp_from_string("a|b|c").unwrap());
-        let opt_insts = compile_regexp(&regexp_from_string("a?(bc)?").unwrap());
-        let rep_insts = compile_regexp(&regexp_from_string("a+(bc)+").unwrap());
-        let oprep_insts = compile_regexp(&regexp_from_string("a*(bc)*").unwrap());
+        let con_insts = compile_regexp(&Regexp::from_string("abc").unwrap());
+        let alt_insts = compile_regexp(&Regexp::from_string("a|b|c").unwrap());
+        let opt_insts = compile_regexp(&Regexp::from_string("a?(bc)?").unwrap());
+        let rep_insts = compile_regexp(&Regexp::from_string("a+(bc)+").unwrap());
+        let oprep_insts = compile_regexp(&Regexp::from_string("a*(bc)*").unwrap());
 
         assert_eq!(con_insts, vec![Char('a'), Char('b'), Char('c'), Match]);
         assert_eq!(alt_insts, vec![Char('a'), Jump(5),
