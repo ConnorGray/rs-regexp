@@ -29,7 +29,7 @@ pub fn thompson_vm(insts: &Vec<Inst>, input: &str) -> bool {
 
     addthread(&mut cur_stack, Thread { saw_char: false, pc: 0});
 
-    for (cur_char_index, cur_char) in input.chars().enumerate() {
+    for (_, cur_char) in input.chars().enumerate() {
         let mut i = 0;
 
         loop {
