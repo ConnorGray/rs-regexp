@@ -33,10 +33,11 @@ pub fn regexp_from_string(string: &str) -> Result<Regexp, RegexpError> {
     let mut depth = 0;
     let mut group = String::new();
     let mut num_alternatives = 0;
-    let mut last_open_paren_index = 0;
 
     use self::Regexp::*;
     use self::RegexpError::*;
+
+    let mut open_paren_index_stack = Vec::new();
 
     for (i, c) in string.chars().enumerate() {
         if escaped {
@@ -52,14 +53,14 @@ pub fn regexp_from_string(string: &str) -> Result<Regexp, RegexpError> {
         match c {
             '(' => { if depth > 0 { group.push('(') };
                      depth += 1;
-                     last_open_paren_index = i;
+                     open_paren_index_stack.push(i);
                      continue; },
             ')' => {
                 depth -= 1;
                 if depth < 0 {
                     return Result::Err(UnmatchedParenthesis(i));
                 } else if depth == 0 {
-                    println!("group: {}", group);
+                    // println!("group: {}", group);
                     let group_regexp = match regexp_from_string(&group) {
                         Ok(value) => value,
                         Err(err) => return Result::Err(match err {
@@ -79,6 +80,7 @@ pub fn regexp_from_string(string: &str) -> Result<Regexp, RegexpError> {
                 } else {
                     group.push(')');
                 }
+                open_paren_index_stack.pop();
                 continue;
             }
             _ => ()
@@ -121,7 +123,8 @@ pub fn regexp_from_string(string: &str) -> Result<Regexp, RegexpError> {
     }
 
     if depth > 0 {
-        return Result::Err(UnmatchedParenthesis(last_open_paren_index));
+        return Result::Err(
+            UnmatchedParenthesis(open_paren_index_stack.pop().unwrap()));
     }
 
     if stack.len() == 0 {

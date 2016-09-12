@@ -47,14 +47,13 @@ fn test_regexs_error_detection() {
     use regexp::RegexpError::*;
     
     let pairs = vec![
-        ("((a)", UnmatchedParenthesis(1)),
-        ("(a))", UnmatchedParenthesis(3))
+        ("((a)", UnmatchedParenthesis(0)),
+        ("(a))", UnmatchedParenthesis(3)),
+        ("(((a))((b())", UnmatchedParenthesis(6)),
     ];
 
     for pair in pairs.iter() {
         let err = regexp::regexp_from_string(&(pair.0)).unwrap_err();
         assert_eq!(pair.1, err);
-        // let regexp = regexp::regexp_from_string(&regexp_string);
-        // let output_string = regexp::regexp_to_string(&regexp);
     }
 }
